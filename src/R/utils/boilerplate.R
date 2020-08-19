@@ -5,6 +5,7 @@ library(Seurat, quietly = TRUE)
 library(ggplot2, quietly = TRUE)
 library(cowplot, quietly = TRUE)
 library(ggrepel, quietly = TRUE)
+library(patchwork)
 
 
 calculate_QC_metrics = function(seurat_object_list, species){
@@ -26,6 +27,51 @@ calculate_QC_metrics = function(seurat_object_list, species){
 }
 
 
+calculate_MT_cutoff = function(seurat_object_list, save_directory=NA) {
+  percent_mt = data.frame(sample=character(), percent_mt=double())
+  for (i in 1:length(seurat_object_list)){
+    row_data = data.frame(sample = seurat_object_list[[i]]@meta.data$orig.ident,
+                          percent_mt = seurat_object_list[[i]]@meta.data$percent.mt)
+    percent_mt = rbind(percent_mt, row_data)
+  }
+  
+  cutoff = get_extreme_outlier(percent_mt$percent_mt)
+  
+  p1 = ggplot(percent_mt, aes(x=sample, y=percent_mt, fill=sample)) +
+    geom_boxplot() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    geom_hline(yintercept=cutoff, linetype="dashed", color = "red", size=1)
+  print(p1)
+  
+  p2 = ggplot(percent_mt, aes(x=percent_mt, fill=sample)) +
+    geom_histogram() +
+    geom_vline(xintercept=cutoff, linetype="dashed", color = "red", size=1)
+  print(p2)
+  
+  if (!is.na(save_directory)){
+    pdf(paste0(save_directory, 'percent_mt_boxplot.pdf'), width = 8, height = 5)
+    print(p1)
+    dev.off()
+    
+    pdf(paste0(save_directory, 'percent_mt_hist.pdf'), width = 8, height = 5)
+    print(p2)
+    dev.off()
+  }
+  
+  return(cutoff)
+}
+
+
+get_extreme_outlier = function(values){
+  # Extreme outliers are any data values which lie more than 3.0 times the interquartile range 
+  upperq = quantile(values)[4]
+  lowerq = quantile(values)[2]
+  iqr = upperq - lowerq
+  cutoff = (iqr * 3) + upperq
+  return(cutoff)
+}
+
+
 calculate_cell_cycle_phase = function(seurat_object_list){
   s_genes = cc.genes.updated.2019$s.genes
   g2m_genes = cc.genes.updated.2019$g2m.genes
@@ -34,6 +80,7 @@ calculate_cell_cycle_phase = function(seurat_object_list){
                                                s.features = s_genes, 
                                                g2m.features = g2m_genes)
   }
+  return(seurat_object_list)
 }
 
 
@@ -149,17 +196,16 @@ gene_expression_histogram = function(seurat_object, slot, marker_list,
 }
 
 
-subset_by_label = function(seurat_object_list, label_value_pairs){
+subset_by_labels = function(seurat_object, label_value_pairs){
   for (label_val in label_value_pairs){
     label = strsplit(label_val, ':')[[1]][[1]]
     value = strsplit(label_val, ':')[[1]][[2]]
     cat("Subsetting", value, "from", label, "\n")
-    for (i in 1:length(seurat_object_list)){
-      seurat_object_list[[i]] = subset(seurat_object_list[[i]], subset = !!sym(label) == value)
-      cat(names(seurat_object_list)[[i]], "Seurat object dimensions (after subsetting):", dim(seurat_object_list[[i]]), "\n")
-    }
+    seurat_object = subset(seurat_object, subset = !!sym(label) == value)
+    cat( "Seurat object dimensions (after subsetting):",
+         dim(seurat_object), "\n")
   }
-  return(seurat_object_list)
+  return(seurat_object)
 }
 
 
@@ -272,7 +318,9 @@ standard_scatterplots = function(seurat_object){
 }
 
 
-generate_violin_plots = function(seurat_object_list, save_directory=NA, show_fig=T){
+generate_violin_plots = function(seurat_object_list, 
+                                 save_directory=NA, 
+                                 show_fig=T){
   plot_list = list()
   for (i in 1:length(seurat_object_list)){
     plot_list[[i]] = VlnPlot(seurat_object_list[[i]], 
@@ -291,7 +339,9 @@ generate_violin_plots = function(seurat_object_list, save_directory=NA, show_fig
 }
 
 
-generate_feature_scatter_plots = function(seurat_object_list, save_directory=NA,  show_fig=T){
+generate_feature_scatter_plots = function(seurat_object_list,
+                                          save_directory=NA, 
+                                          show_fig=T){
   plot_list = list()
   for (i in 1:length(seurat_object_list)){
     plot_list[[i]] = standard_scatterplots(seurat_object_list[[i]]) 
@@ -305,4 +355,52 @@ generate_feature_scatter_plots = function(seurat_object_list, save_directory=NA,
       dev.off()
     }
   }
+}
+
+# Following function references this post:
+# https://divingintogeneticsandgenomics.rbind.io/post/stacked-violin-plot-for-visualizing-single-cell-data-in-seurat/
+modify_vlnplot =  function(seurat_object, 
+                           feature, 
+                           pt.size = 0, 
+                           plot.margin = unit(c(-0.75, 0, -0.75, 0), "cm"),
+                           ...) {
+  p = VlnPlot(seurat_object, features = feature, pt.size = pt.size, ... )  + 
+    xlab("") + ylab(feature) + ggtitle("") + 
+    theme(legend.position = "none", 
+          axis.text.x = element_blank(), 
+          axis.ticks.x = element_blank(), 
+          axis.title.y = element_text(size = rel(1), angle = 0), 
+          axis.text.y = element_text(size = rel(1)), 
+          plot.margin = plot.margin ) 
+  return(p)
+}
+
+## extract the max value of the y axis
+extract_max = function(p){
+  ymax = max(ggplot_build(p)$layout$panel_scales_y[[1]]$range$range)
+  return(ceiling(ymax))
+}
+
+## main function
+StackedVlnPlot = function(seurat_object, 
+                          features,
+                          pt.size = 0, 
+                          plot.margin = unit(c(-0.75, 0, -0.75, 0), "cm"),
+                          xaxis_rot = 0,
+                          ...) {
+  
+  plot_list = purrr::map(features,
+                         function(x) modify_vlnplot(seurat_object = seurat_object,
+                                                    feature = x, ...))
+  plot_list[[length(plot_list)]] = plot_list[[length(plot_list)]] +
+    theme(axis.text.x=element_text(angle = xaxis_rot), axis.ticks.x = element_line())
+  
+  # change the y-axis tick to only max value 
+  ymaxs = purrr::map_dbl(plot_list, extract_max)
+  plot_list = purrr::map2(plot_list, ymaxs, function(x,y) x + 
+                            scale_y_continuous(breaks = c(y)) + 
+                            expand_limits(y = y))
+  
+  p = patchwork::wrap_plots(plotlist = plot_list, ncol = 1)
+  return(p)
 }
