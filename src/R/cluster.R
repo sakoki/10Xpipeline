@@ -93,7 +93,7 @@ pdf(paste0(argv$output,
            '_epoch', argv$n_epochs,
            '_lr', argv$lr,
            '_dims', argv$N,
-           '.pdf'), width = 12, height = 7)
+           '.pdf'), width = 14, height = 7)
 DimPlot(all_seurat_integrated, reduction = "umap", group.by = "orig.ident")
 dev.off()
 
@@ -117,7 +117,7 @@ for (i in 1:length(res_list)) {
   res = gsub('\\.', '-', as.name(res))
   
   # Figures
-  pdf(paste0(subfolder, 'clustered_umap_leiden', res, '.pdf'), width = 10, height = 7)
+  pdf(paste0(subfolder, 'clustered_umap_leiden', res, '.pdf'), width = 11, height = 7)
   print(DimPlot(clustered, reduction = "umap", label = TRUE, pt.size = 0.5, label.size = 5))
   dev.off()
 
