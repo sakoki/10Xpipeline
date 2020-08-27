@@ -53,10 +53,10 @@ p = add_argument(p, "--D",
                  help = "Number of dimensions to use from CCA to specify the 
                  neighbor search space", 
                  default = 30)
-p = add_argument(p, "--reference", 
-                 help = "Sample to use as reference during integration step 
-                 (speed up computation time)", 
-                 default = NULL)
+# p = add_argument(p, "--reference", 
+#                  help = "Sample to use as reference during integration step 
+#                  (speed up computation time)", 
+#                  default = NULL)
 p = add_argument(p, "--k_anchor", 
                  type = "numeric",
                  help = "How many neighbors (k) to use when picking anchors", 
@@ -113,8 +113,8 @@ if (argv$merge_type == 1){  # No Batch Correction (Simple Merge)
                                     k_filter = argv$k_filter,
                                     k_score = argv$k_score, 
                                     D = argv$D,
-                                    regress_out = argv$regress_out,
-                                    references = argv$reference)
+                                    regress_out = argv$regress_out)
+                                    # references = argv$reference)
   
 } else if (argv$merge_type == 3){  # Batch correction (Seurat V3 SCTransform)
   all_seurat_integrated = sctransform_merge(seurat_objects,
@@ -124,8 +124,8 @@ if (argv$merge_type == 1){  # No Batch Correction (Simple Merge)
                                             k_filter = argv$k_filter,
                                             k_score = argv$k_score, 
                                             D = argv$D,
-                                            regress_out = argv$regress_out,
-                                            references = argv$reference)
+                                            regress_out = argv$regress_out)
+                                            # references = argv$reference)
 }
 
 cat("Running PCA...\n")

@@ -20,8 +20,10 @@ calculate_QC_metrics = function(seurat_object_list, species){
     return 
   }
   for (i in 1:length(seurat_object_list)) {
-    seurat_object_list[[i]][["percent.mt"]] = PercentageFeatureSet(seurat_object_list[[i]], pattern = mito_regex)
-    seurat_object_list[[i]][["percent.ribo"]] = PercentageFeatureSet(seurat_object_list[[i]], pattern = ribo_regex)
+    seurat_object_list[[i]][["percent.mt"]] = PercentageFeatureSet(seurat_object_list[[i]], 
+                                                                   pattern = mito_regex)
+    seurat_object_list[[i]][["percent.ribo"]] = PercentageFeatureSet(seurat_object_list[[i]], 
+                                                                     pattern = ribo_regex)
   }
   return(seurat_object_list)
 }
@@ -132,7 +134,8 @@ get_cell_counts_by_marker = function(seurat_object, marker_list) {
 }
 
 
-generate_marker_count_table = function(seurat_object_list, marker_list, 
+generate_marker_count_table = function(seurat_object_list,
+                                       marker_list, 
                                        save_directory=NA){
   # Generate a table of markers and corresponding number of cells that have some amount of expression > 0 
   for (i in 1:length(seurat_object_list)){
@@ -175,8 +178,11 @@ marker_barplots = function(counts, save_directory, y_buffer = 200){
 }
 
 
-gene_expression_histogram = function(seurat_object, slot, marker_list, 
-                                     save_directory, binsize="Sturges",
+gene_expression_histogram = function(seurat_object,
+                                     slot, 
+                                     marker_list, 
+                                     save_directory,
+                                     binsize="Sturges",
                                      rm_zero=F){
   for (i in marker_list){
     # Excluding all 0's, find the quantitles of data 
@@ -209,7 +215,10 @@ subset_by_labels = function(seurat_object, label_value_pairs){
 }
 
 
-simple_merge = function(seurat_object_list, normalized = F, n_features = 2000,  regress_out = NULL){
+simple_merge = function(seurat_object_list, 
+                        normalized = F,
+                        n_features = 2000,  
+                        regress_out = NULL){
   all_seurat_integrated = merge(x = seurat_object_list[[1]],
                                 y = seurat_object_list[2:length(seurat_object_list)],
                                 add.cell.ids = as.vector(names(seurat_object_list)),
@@ -232,20 +241,28 @@ simple_merge = function(seurat_object_list, normalized = F, n_features = 2000,  
 }
 
 
-cca_merge = function(seurat_object_list, n_features = 2000, k_anchor = 5, k_filter = 200, 
-                     k_score = 30, D = 30, regress_out = NULL, references = NULL){
+cca_merge = function(seurat_object_list,
+                     n_features = 2000, 
+                     k_anchor = 5,
+                     k_filter = 200, 
+                     k_score = 30, 
+                     D = 30, 
+                     regress_out = NULL){
+                     # references = NULL){
   for (i in 1:length(seurat_object_list)) {
     seurat_object_list[[i]] = NormalizeData(seurat_object_list[[i]], 
                                             normalization.method = "LogNormalize", 
-                                            scale.factor = 10000, verbose = T)
+                                            scale.factor = 10000, 
+                                            verbose = T)
     seurat_object_list[[i]] = FindVariableFeatures(seurat_object_list[[i]], 
                                                    selection.method = "vst", 
-                                                   nfeatures = n_features, verbose = T)
+                                                   nfeatures = n_features, 
+                                                   verbose = T)
   }
   
-  if (!is.null(references)){
-    references = which(names(seurat_object_list) %in% references)
-  }
+  # if (!is.null(references)){
+  #   references = which(names(seurat_object_list) %in% references)
+  # }
   
   data_anchors = FindIntegrationAnchors(object.list = seurat_object_list,
                                         normalization.method = "LogNormalize",
@@ -253,7 +270,7 @@ cca_merge = function(seurat_object_list, n_features = 2000, k_anchor = 5, k_filt
                                         k.filter = k_filter,
                                         k.score = k_score,
                                         dims = 1:D,
-                                        reference = references,
+                                        # reference = references,
                                         verbose = T)
   all_seurat_integrated = IntegrateData(anchorset = data_anchors,
                                         normalization.method = "LogNormalize",
@@ -267,9 +284,15 @@ cca_merge = function(seurat_object_list, n_features = 2000, k_anchor = 5, k_filt
 }
 
 
-sctransform_merge = function(seurat_object_list, n_features = 3000, keep_var = T, 
-                             k_anchor = 5, k_filter = 200, k_score = 30, D = 30, 
-                             regress_out = NULL, references = NULL){
+sctransform_merge = function(seurat_object_list, 
+                             n_features = 3000, 
+                             keep_var = T, 
+                             k_anchor = 5, 
+                             k_filter = 200, 
+                             k_score = 30, 
+                             D = 30, 
+                             regress_out = NULL){
+                             # references = NULL){
   for (i in 1:length(seurat_object_list)) {
     seurat_object_list[[i]] = SCTransform(seurat_object_list[[i]],
                                           vars.to.regress = regress_out,
@@ -279,14 +302,15 @@ sctransform_merge = function(seurat_object_list, n_features = 3000, keep_var = T
   }
   # Select Integration features - genes are ranked by the number of datasets they appear in
   data_features = SelectIntegrationFeatures(object.list = seurat_object_list,
-                                            nfeatures = n_features)
+                                            nfeatures = n_features,
+                                            verbose = T)
   seurat_object_list = PrepSCTIntegration(object.list = seurat_object_list,
                                           anchor.features = data_features, 
                                           verbose = T)
   
-  if (!is.null(references)){
-    references = which(names(seurat_object_list) %in% references)
-  }
+  # if (!is.null(references)){
+  #   references = which(names(seurat_object_list) %in% references)
+  # }
   
   # Identify anchors and integrate datasets
   data_anchors = FindIntegrationAnchors(object.list = seurat_object_list,
@@ -296,7 +320,7 @@ sctransform_merge = function(seurat_object_list, n_features = 3000, keep_var = T
                                         k.filter = k_filter,
                                         k.score = k_score,
                                         dims = 1:D,
-                                        reference = references,
+                                        # reference = references,
                                         verbose = T)
   all_seurat_integrated = IntegrateData(anchorset = data_anchors,
                                         normalization.method = "SCT",
